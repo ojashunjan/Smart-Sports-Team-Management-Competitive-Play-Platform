@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block content %}
+<a href="{{ url_for('index') }}" class="btn btn-link">&larr; Back</a>
+<h2>Match #{{ match.id }} — {{ match.sport }}</h2>
+<p>Location: {{ match.location or 'TBD' }} • Stakes: ${{ "%.2f"|format(match.stakes) }} • Status: {{ match.status }}</p>
+<p>Teams: {{ match.team1.name if match.team1 else 'Open' }} vs {{ match.team2.name if match.team2 else 'Open' }}</p>
+
+<div class="row">
+  <div class="col-md-4">
+    <h5>Pool (players from selected teams)</h5>
+    <ul id="pool-list" class="list-group">
+      {% for p in pool %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          {{ p.name }} — {{ p.skill_rating }}
+          {% if not locked %}
+            <div>
+              <button class="btn btn-sm btn-outline-success btn-assign" data-player-id="{{ p.id }}" data-side="A">A</button>
+              <button class="btn btn-sm btn-outline-secondary btn-assign" data-player-id="{{ p.id }}" data-side="B">B</button>
+            </div>
+          {% endif %}
+        </li>
+      {% else %}
+        <li class="list-group-item text-muted">No players in pool</li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <div class="col-md-4">
+    <h5>Team A</h5>
+    <ul id="team-a-list" class="list-group">
+      {% for p in assigned_a %}<li class="list-group-item">{{ p.name }} — {{ p.skill_rating }}{% if not locked %} <button class="btn btn-sm btn-danger btn-remove" data-player-id="{{ p.id }}">Remove</button>{% endif %}</li>{% endfor %}
+    </ul>
+  </div>
+
+  <div class="col-md-4">
+    <h5>Team B</h5>
+    <ul id="team-b-list" class="list-group">
+      {% for p in assigned_b %}<li class="list-group-item">{{ p.name }} — {{ p.skill_rating }}{% if not locked %} <button class="btn btn-sm btn-danger btn-remove" data-player-id="{{ p.id }}">Remove</button>{% endif %}</li>{% endfor %}
+    </ul>
+  </div>
+</div>
+
+<div class="mt-3">
+  {% if not locked %}
+    <button id="btn-balance" class="btn btn-outline-primary">Auto-balance</button>
+    <button id="btn-shuffle" class="btn btn-outline-secondary">Shuffle Again</button>
+    <button id="btn-lock" class="btn btn-success">Lock Match</button>
+  {% else %}
+    <button id="btn-lock" class="btn btn-warning">Unlock Match</button>
+  {% endif %}
+  <form method="post" action="{{ url_for('join_open_match', match_id=match.id, team_id=0) }}" id="join-team-form" style="display:none"></form>
+</div>
+
+<script>
+async function postForm(url, data) {
+  const body = new URLSearchParams(data);
+  const res = await fetch(url, {method:'POST', body});
+  return res.json();
+}
+
+document.getElementById('btn-balance')?.addEventListener('click', async () => {
+  const res = await fetch(`/matches/{{ match.id }}/auto_balance`, {method:'POST'});
+  const j = await res.json();
+  if (j.error) { alert(j.error); return; }
+  location.reload();
+});
+
+document.getElementById('btn-shuffle')?.addEventListener('click', async () => {
+  const res = await fetch(`/matches/{{ match.id }}/shuffle`, {method:'POST'});
+  const j = await res.json();
+  if (j.error) { alert(j.error); return; }
+  location.reload();
+});
+
+document.getElementById('btn-lock')?.addEventListener('click', async () => {
+  const res = await fetch(`/matches/{{ match.id }}/toggle_lock`, {method:'POST'});
+  const j = await res.json();
+  if (j.error) { alert(j.error); return; }
+  location.reload();
+});
+
+// assign/remove handlers
+document.querySelectorAll('.btn-assign').forEach(b=>{
+  b.addEventListener('click', async (ev)=>{
+    const player_id = b.dataset.playerId;
+    const side = b.dataset.side;
+    const form = new URLSearchParams();
+    form.append('player_id', player_id);
+    form.append('team_side', side);
+    const res = await fetch(`/matches/{{ match.id }}/assign`, {method:'POST', body: form});
+    const j = await res.json();
+    if (j.ok) location.reload(); else alert('error');
+  });
+});
+document.querySelectorAll('.btn-remove').forEach(b=>{
+  b.addEventListener('click', async (ev)=>{
+    const player_id = b.dataset.playerId;
+    const form = new URLSearchParams();
+    form.append('player_id', player_id);
+    form.append('remove', '1');
+    const res = await fetch(`/matches/{{ match.id }}/assign`, {method:'POST', body: form});
+    const j = await res.json();
+    if (j.ok) location.reload(); else alert('error');
+  });
+});
+</script>
+{% endblock %}

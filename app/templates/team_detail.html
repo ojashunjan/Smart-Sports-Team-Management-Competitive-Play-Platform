@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>{{ team.name }} <small class="text-muted">({{ team.color or 'no color' }})</small></h2>
+<p>Skill rating: {{ team.skill_rating }} • Captain: 
+  {% set cap = team.players|selectattr('id','equalto',team.captain_id)|map(attribute='name')|list|first %}
+  {{ cap or '—' }}
+</p>
+
+<h4>Players</h4>
+<ul class="list-group mb-3">
+  {% for p in team.players %}
+    <li class="list-group-item">{{ p.name }} — {{ p.role or 'player' }} — Skill: {{ p.skill_rating }}</li>
+  {% else %}
+    <li class="list-group-item text-muted">No players yet</li>
+  {% endfor %}
+</ul>
+
+<h5>Add player</h5>
+<form method="post" action="{{ url_for('team_add_player', team_id=team.id) }}" class="mb-3">
+  <div class="row g-2">
+    <div class="col-md-4"><input class="form-control" name="name" placeholder="Player name" required></div>
+    <div class="col-md-3"><input class="form-control" name="email" placeholder="Email (optional)"></div>
+    <div class="col-md-3"><input class="form-control" name="role" placeholder="Role/position"></div>
+    <div class="col-md-2"><input class="form-control" name="skill" placeholder="Skill (1200)"></div>
+  </div>
+  <button class="btn btn-sm btn-secondary mt-2">Add Player</button>
+</form>
+
+<h5>Invite player (manual link)</h5>
+<form method="post" action="{{ url_for('team_invite', team_id=team.id) }}">
+  <div class="row g-2">
+    <div class="col-md-5"><input class="form-control" name="name" placeholder="Invited person name (optional)"></div>
+    <div class="col-md-5"><input class="form-control" name="email" placeholder="Email (optional)"></div>
+    <div class="col-md-2"><button class="btn btn-sm btn-outline-primary">Create Invite</button></div>
+  </div>
+</form>
+
+<a class="btn btn-link mt-3" href="{{ url_for('index') }}">&larr; Back</a>
+{% endblock %}

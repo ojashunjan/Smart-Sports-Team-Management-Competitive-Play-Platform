@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Create Match</h2>
+<form method="post" class="mb-4">
+  <div class="mb-2"><input class="form-control" name="sport" placeholder="Sport (soccer)" /></div>
+  <div class="mb-2"><input class="form-control" name="location" placeholder="Location (optional)" /></div>
+  <div class="mb-2"><input class="form-control" name="date" placeholder="YYYY-MM-DDTHH:MM:SS (optional)" /></div>
+  <div class="mb-2">
+    <select class="form-select" name="team1_id">
+      <option value="">Select Team 1 (optional)</option>
+      {% for t in teams %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="mb-2">
+    <select class="form-select" name="team2_id">
+      <option value="">Select Team 2 (optional)</option>
+      {% for t in teams %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="mb-2"><input class="form-control" name="stakes" placeholder="Stakes (USD)"></div>
+  <button class="btn btn-success">Create Match</button>
+  <a class="btn btn-secondary" href="{{ url_for('index') }}">Cancel</a>
+</form>
+{% endblock %}
