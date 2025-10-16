@@ -8,11 +8,15 @@ class Team(db.Model):
     skill_rating = db.Column(db.Integer, default=1200)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    # New sport field — nullable=True for backward compatibility with existing DBs.
+    sport = db.Column(db.String(50), nullable=True, default="soccer")
+
     # captain is a Player id (nullable)
     captain_id = db.Column(db.Integer, db.ForeignKey('player.id'), nullable=True)
 
     # players relationship uses Player.team_id (disambiguate)
     players = db.relationship("Player", backref="team", lazy=True, foreign_keys="Player.team_id")
+
 
 class Player(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -28,6 +32,22 @@ class Player(db.Model):
     wins = db.Column(db.Integer, default=0)
     losses = db.Column(db.Integer, default=0)
 
+    # relationship to sport-specific skill rows
+    skills = db.relationship("PlayerSkill", backref="player", lazy=True, cascade="all, delete-orphan")
+
+
+class PlayerSkill(db.Model):
+    """
+    Stores sport-specific skill name/value for a player.
+    Example: player_id=1, sport='soccer', name='Shooting', value=85
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    player_id = db.Column(db.Integer, db.ForeignKey('player.id'), nullable=False)
+    sport = db.Column(db.String(50), nullable=False)
+    name = db.Column(db.String(80), nullable=False)
+    value = db.Column(db.Integer, nullable=False, default=0)
+
+
 class Match(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     sport = db.Column(db.String(80), nullable=False, default="soccer")
@@ -42,6 +62,7 @@ class Match(db.Model):
     team1 = db.relationship("Team", foreign_keys=[team1_id], lazy=True)
     team2 = db.relationship("Team", foreign_keys=[team2_id], lazy=True)
 
+
 class MatchAssignment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     match_id = db.Column(db.Integer, db.ForeignKey('match.id'), nullable=False)
@@ -49,6 +70,7 @@ class MatchAssignment(db.Model):
     team_side = db.Column(db.String(2), nullable=False)  # 'A' or 'B'
     match = db.relationship("Match", backref=db.backref("assignments", cascade="all, delete-orphan"))
     player = db.relationship("Player", lazy=True)
+
 
 class Invite(db.Model):
     """

@@ -1,8 +1,65 @@
 from flask import current_app as app, render_template, request, redirect, url_for, flash, jsonify
 from . import db
-from .models import Team, Player, Match, MatchAssignment, Invite
+from .models import Team, Player, Match, MatchAssignment, Invite, PlayerSkill
 from .utils import shuffle_players_list, balance_teams, make_token
 from datetime import datetime
+
+# -------------------------
+# Helper: sport -> skill fields
+# -------------------------
+def skill_fields_for_sport(sport):
+    mapping = {
+        "soccer": ["Shooting", "Passing", "Defending", "Speed", "Stamina"],
+        "basketball": ["Shooting", "Dribbling", "Defense", "Passing", "Rebounding"],
+        "volleyball": ["Serving", "Spiking", "Blocking", "Setting", "Passing"],
+        "hockey": ["Shooting", "Skating", "Defense", "Checking", "Passing"],
+        "football": ["Throwing", "Catching", "Tackling", "Speed", "Awareness"],
+        "default": ["Skill A", "Skill B", "Skill C", "Skill D", "Skill E"]
+    }
+    if not sport:
+        return mapping["default"]
+    return mapping.get(sport.lower(), mapping["default"])
+
+# -------------------------
+# Helper: recalculate team skill rating
+# -------------------------
+def recalc_team_skill(team):
+    """
+    Recalculate team's average skill rating as:
+    average of all PlayerSkill.value across all players in the team.
+    If no PlayerSkill rows, fallback to average of player.skill_rating values
+    or the default 1200.
+    """
+    # collect all players on team
+    players = Player.query.filter_by(team_id=team.id).all()
+    total = 0
+    count = 0
+    for p in players:
+        # player skills
+        for s in p.skills:
+            total += s.value
+            count += 1
+
+    if count > 0:
+        avg = total / count
+        team.skill_rating = int(round(avg))
+        db.session.add(team)
+        db.session.commit()
+        return team.skill_rating
+
+    # fallback: average player.skill_rating if present
+    if players:
+        sum_ratings = sum((p.skill_rating or 1200) for p in players)
+        team.skill_rating = int(round(sum_ratings / len(players)))
+        db.session.add(team)
+        db.session.commit()
+        return team.skill_rating
+
+    # no players: leave default
+    team.skill_rating = team.skill_rating or 1200
+    db.session.add(team)
+    db.session.commit()
+    return team.skill_rating
 
 # Home
 @app.route("/")
@@ -23,7 +80,10 @@ def create_team():
         skill = int(request.form.get("skill") or 1200)
         captain_name = request.form.get("captain_name") or None
 
-        team = Team(name=name, color=color, skill_rating=skill)
+        # sport from form (new). For backward compatibility, if not provided fallback to 'soccer'
+        sport = request.form.get("sport") or "soccer"
+
+        team = Team(name=name, color=color, skill_rating=skill, sport=sport)
         db.session.add(team)
         db.session.commit()
 
@@ -41,7 +101,11 @@ def create_team():
 @app.route("/teams/<int:team_id>")
 def team_detail(team_id):
     team = Team.query.get_or_404(team_id)
-    return render_template("team_detail.html", team=team)
+    # derive skill fields for this team's sport (for the add-player form)
+    skill_names = skill_fields_for_sport(team.sport)
+    # players (ordered)
+    players = team.players
+    return render_template("team_detail.html", team=team, players=players, skill_names=skill_names)
 
 # manual add player to team
 @app.route("/teams/<int:team_id>/add_player", methods=["POST"])
@@ -50,14 +114,153 @@ def team_add_player(team_id):
     name = request.form.get("name")
     email = request.form.get("email") or None
     role = request.form.get("role") or None
+    # legacy single skill field (skill) still supported: treat as skill_rating fallback
     skill = int(request.form.get("skill") or 1200)
     if not name:
         flash("Player name required", "danger")
         return redirect(url_for("team_detail", team_id=team_id))
+
+    # create player
     p = Player(name=name, email=email, role=role, skill_rating=skill, team_id=team.id, invited=False)
-    db.session.add(p); db.session.commit()
+    db.session.add(p)
+    db.session.commit()
+
+    # extract skill_* fields from form and store as PlayerSkill rows
+    # expected form inputs: skill_Shooting, skill_Passing, etc.
+    skill_names = skill_fields_for_sport(team.sport)
+    any_skill_saved = False
+    for sname in skill_names:
+        key = f"skill_{sname.replace(' ','_')}"
+        val = request.form.get(key)
+        if val is None or val == "":
+            continue
+        try:
+            v = int(val)
+        except Exception:
+            # ignore invalid entries
+            continue
+        ps = PlayerSkill(player_id=p.id, sport=team.sport.lower() if team.sport else "unknown", name=sname, value=v)
+        db.session.add(ps)
+        any_skill_saved = True
+
+    # Also support arbitrary skill_ fields not in the canonical set
+    for key in request.form:
+        if key.startswith("skill_") and key not in {f"skill_{sn.replace(' ','_')}" for sn in skill_names}:
+            v_raw = request.form.get(key)
+            if v_raw is None or v_raw == "":
+                continue
+            try:
+                v = int(v_raw)
+            except Exception:
+                continue
+            # name from key after skill_
+            name_from_key = key[len("skill_"):].replace("_", " ")
+            ps = PlayerSkill(player_id=p.id, sport=team.sport.lower() if team.sport else "unknown", name=name_from_key, value=v)
+            db.session.add(ps)
+            any_skill_saved = True
+
+    db.session.commit()
+
+    # Recalculate team skill rating now that player added
+    recalc_team_skill(team)
+
     flash("Player added", "success")
     return redirect(url_for("team_detail", team_id=team_id))
+
+# route to edit player and their skills
+@app.route("/players/<int:player_id>/edit", methods=["GET", "POST"])
+def edit_player(player_id):
+    player = Player.query.get_or_404(player_id)
+    team = player.team
+    sport = team.sport if team else None
+    skill_names = skill_fields_for_sport(sport)
+    if request.method == "POST":
+        player.name = request.form.get("name") or player.name
+        player.email = request.form.get("email") or player.email
+        player.role = request.form.get("role") or player.role
+        # optional: update legacy skill_rating if provided
+        try:
+            player.skill_rating = int(request.form.get("skill_rating") or player.skill_rating)
+        except Exception:
+            pass
+        db.session.add(player)
+        db.session.commit()
+
+        # delete old PlayerSkill rows for this player and save new ones
+        PlayerSkill.query.filter_by(player_id=player.id).delete()
+        db.session.commit()
+
+        for sname in skill_names:
+            key = f"skill_{sname.replace(' ','_')}"
+            val = request.form.get(key)
+            if val is None or val == "":
+                continue
+            try:
+                v = int(val)
+            except Exception:
+                continue
+            ps = PlayerSkill(player_id=player.id, sport=sport.lower() if sport else "unknown", name=sname, value=v)
+            db.session.add(ps)
+
+        # also save arbitrary skill_ fields
+        for key in request.form:
+            if key.startswith("skill_") and key not in {f"skill_{sn.replace(' ','_')}" for sn in skill_names}:
+                v_raw = request.form.get(key)
+                if v_raw is None or v_raw == "":
+                    continue
+                try:
+                    v = int(v_raw)
+                except Exception:
+                    continue
+                name_from_key = key[len("skill_"):].replace("_", " ")
+                ps = PlayerSkill(player_id=player.id, sport=sport.lower() if sport else "unknown", name=name_from_key, value=v)
+                db.session.add(ps)
+
+        db.session.commit()
+
+        # recalc team rating
+        if team:
+            recalc_team_skill(team)
+
+        flash("Player updated", "success")
+        if team:
+            return redirect(url_for("team_detail", team_id=team.id))
+        return redirect(url_for("index"))
+
+    # GET: render edit form
+    # Prepare a dict of existing skill values for this player
+    existing_skills = {s.name: s.value for s in player.skills}
+    return render_template("edit_player.html", player=player, team=team, skill_names=skill_names, existing_skills=existing_skills)
+
+
+@app.route("/player/<int:player_id>/delete", methods=["POST", "GET"])
+def delete_player(player_id):
+    player = Player.query.get_or_404(player_id)
+    team = player.team
+
+    # Delete the player's skills first
+    PlayerSkill.query.filter_by(player_id=player.id).delete()
+
+    db.session.delete(player)
+    db.session.commit()
+
+    # Recalculate team's average after deletion
+    players = team.players
+    if players:
+        total_skill_sum = 0
+        total_skill_count = 0
+        for p in players:
+            for skill in p.skills:
+                total_skill_sum += skill.skill_value
+                total_skill_count += 1
+        team.average_skill_rating = total_skill_sum / total_skill_count
+    else:
+        team.average_skill_rating = 0
+
+    db.session.commit()
+
+    flash(f"{player.name} has been deleted from {team.name}.", "warning")
+    return redirect(url_for("team_detail", team_id=team.id))
 
 # invite player to a team (creates Invite row and shows a token / page)
 @app.route("/teams/<int:team_id>/invite", methods=["GET","POST"])
@@ -89,6 +292,26 @@ def create_match():
         stakes = float(request.form.get("stakes") or 0.0)
 
         m = Match(sport=sport, location=location, stakes=stakes)
+
+        # If teams were selected, convert to ints
+        if team1_id:
+            team1_id = int(team1_id)
+        if team2_id:
+            team2_id = int(team2_id)
+
+        # Validate team sport compatibility if both teams provided
+        if team1_id and team2_id:
+            team1 = Team.query.get(team1_id)
+            team2 = Team.query.get(team2_id)
+            # If either team has no sport set (legacy), treat missing sport as equal to m.sport or to other team
+            t1_sport = team1.sport or sport
+            t2_sport = team2.sport or sport
+            if t1_sport != t2_sport:
+                flash(f"Cannot create match: teams must have the same sport. {team1.name} plays {t1_sport}, while {team2.name} plays {t2_sport}.", "danger")
+                return redirect(url_for("create_match"))
+            # ensure match sport aligns with teams
+            m.sport = t1_sport
+
         if team1_id:
             m.team1_id = int(team1_id)
         if team2_id:
@@ -145,6 +368,12 @@ def accept_invite(token):
             db.session.add(p); db.session.commit()
             inv.accepted = True; db.session.commit()
             flash("You joined the team!", "success")
+            # recalc team rating (no skills from invite accepted player until they edit)
+            try:
+                team = Team.query.get(inv.context_id)
+                recalc_team_skill(team)
+            except Exception:
+                pass
             return redirect(url_for("team_detail", team_id=inv.context_id))
         else:
             # match invite - join as a player assigned to match pool (we create a player w/o team)
