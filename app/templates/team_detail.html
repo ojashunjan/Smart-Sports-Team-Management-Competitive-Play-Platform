@@ -32,16 +32,20 @@
                 <td>{{ p.name }}</td>
                 <td>{{ p.role or "" }}</td>
                 <td>{{ p.skill_rating }}</td>
+
+                {# build a dict of this player's skills keyed by name -> value #}
                 {% set player_skills = {} %}
                 {% for s in p.skills %}
-                    {% set _ = player_skills.update({s.skill_name: s.skill_value}) %}
+                    {% set _ = player_skills.update({ s.name: s.value }) %}
                 {% endfor %}
+
                 {% for skill_name in skill_names %}
                     <td>{{ player_skills.get(skill_name, '-') }}</td>
                 {% endfor %}
                 <td>
                     <a href="{{ url_for('edit_player', player_id=p.id) }}" class="btn btn-sm btn-outline-primary">Edit</a>
-                    <a href="{{ url_for('delete_player', player_id=p.id) }}" class="btn btn-sm btn-outline-danger">Delete</a>
+                    <a href="{{ url_for('delete_player', player_id=p.id) }}" class="btn btn-sm btn-outline-danger"
+                       onclick="return confirm('Delete {{ p.name }}?');">Delete</a>
                 </td>
             </tr>
             {% endfor %}
@@ -50,7 +54,7 @@
 
     <form method="POST" action="{{ url_for('team_add_player', team_id=team.id) }}" class="mt-3">
         <h5>Add Player</h5>
-        <div class="row g-2">
+        <div class="row g-2 mb-2">
             <div class="col-md-3">
                 <input type="text" class="form-control" name="name" placeholder="Player Name" required>
             </div>
@@ -63,6 +67,19 @@
             <div class="col-md-3">
                 <input type="email" class="form-control" name="email" placeholder="Email">
             </div>
+        </div>
+
+        {# Sport-specific skill inputs #}
+        <div class="row g-2">
+            {% for skill_name in skill_names %}
+            <div class="col-md-2 mb-2">
+                <label class="form-label small">{{ skill_name }}</label>
+                <input type="number" class="form-control" name="skill_{{ skill_name.replace(' ', '_') }}" min="0" max="999" placeholder="{{ skill_name }}">
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="row mt-3">
             <div class="col-md-2">
                 <button type="submit" class="btn btn-success w-100">Add Player</button>
             </div>
