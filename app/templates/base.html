@@ -9,6 +9,10 @@
 <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm mb-4">
   <div class="container">
     <a class="navbar-brand" href="{{ url_for('index') }}">Smart Sports</a>
+    <div class="admin-login-container">
+    <a href="{{ url_for('admin_login') }}" class="admin-login-btn">⚙️ Admin Login</a>
+</div>
+
     <div class="ms-auto">
       <a class="btn btn-outline-primary me-2" href="{{ url_for('create_team') }}">Create Team</a>
       <a class="btn btn-outline-success" href="{{ url_for('create_match') }}">Create Match</a>
