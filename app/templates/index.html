@@ -27,7 +27,7 @@
           <div class="small">Team1: {{ m.team1.name if m.team1 else 'Open' }} — Team2: {{ m.team2.name if m.team2 else 'Open' }}</div>
         </div>
         <div>
-          <a class="btn btn-sm btn-primary" href="{{ url_for('match_detail', match_id=m.id) }}">Open</a>
+          <a class="btn btn-sm btn-outline-success" href="{{ url_for('match_detail', match_id=m.id) }}">Open</a>
           {% if (not m.team1_id) or (not m.team2_id) %}
             <span class="badge bg-warning text-dark">Open challenge</span>
           {% endif %}

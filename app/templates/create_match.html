@@ -2,9 +2,9 @@
 {% block content %}
 <h2>Create Match</h2>
 <form method="post" class="mb-4">
-  <div class="mb-2"><input class="form-control" name="sport" placeholder="Sport (soccer)" /></div>
-  <div class="mb-2"><input class="form-control" name="location" placeholder="Location (optional)" /></div>
-  <div class="mb-2"><input class="form-control" name="date" placeholder="YYYY-MM-DDTHH:MM:SS (optional)" /></div>
+  <div class="mb-2"><input class="form-control" name="sport" placeholder="Sport" /></div>
+  <div class="mb-2"><input class="form-control" name="location" placeholder="Location" /></div>
+  <div class="mb-2"><input class="form-control" name="date" placeholder="YYYY-MM-DDTHH:MM:SS" /></div>
   <div class="mb-2">
     <select class="form-select" name="team1_id" id="team1_select" onchange="filterTeam2Options()">
       <option value="">Select Team 1 (optional)</option>
@@ -13,11 +13,11 @@
   </div>
   <div class="mb-2">
     <select class="form-select" name="team2_id" id="team2_select">
-      <option value="">Select Team 2 (optional)</option>
+      <option value="">Select Team 2</option>
       {% for t in teams %}<option value="{{ t.id }}" data-sport="{{ t.sport }}">{{ t.name }}{% if t.sport %} — {{ t.sport }}{% endif %}</option>{% endfor %}
     </select>
   </div>
-  <div class="mb-2"><input class="form-control" name="stakes" placeholder="Stakes (USD)"></div>
+  <div class="mb-2"><input class="form-control" name="stakes" placeholder="Stakes (CAD)"></div>
   <button class="btn btn-success">Create Match</button>
   <a class="btn btn-secondary" href="{{ url_for('index') }}">Cancel</a>
 </form>

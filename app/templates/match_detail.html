@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<a href="{{ url_for('index') }}" class="btn btn-link">&larr; Back</a>
+<a href="{{ url_for('index') }}" class="btn btn-outline-success">&larr; Back</a>
 <h2>Match #{{ match.id }} — {{ match.sport }}</h2>
 <p>Location: {{ match.location or 'TBD' }} • Stakes: ${{ "%.2f"|format(match.stakes) }} • Status: {{ match.status }}</p>
 <p>Teams: {{ match.team1.name if match.team1 else 'Open' }} vs {{ match.team2.name if match.team2 else 'Open' }}</p>
@@ -42,7 +42,7 @@
 
 <div class="mt-3">
   {% if not locked %}
-    <button id="btn-balance" class="btn btn-outline-primary">Auto-balance</button>
+    <button id="btn-balance" class="btn btn-outline-success">Auto-balance</button>
     <button id="btn-shuffle" class="btn btn-outline-secondary">Shuffle Again</button>
     <button id="btn-lock" class="btn btn-success">Lock Match</button>
   {% else %}

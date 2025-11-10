@@ -31,6 +31,7 @@ def skill_fields_for_sport(sport):
         "volleyball": ["Serving", "Spiking", "Blocking", "Setting", "Passing"],
         "hockey": ["Shooting", "Skating", "Defense", "Checking", "Passing"],
         "football": ["Throwing", "Catching", "Tackling", "Speed", "Awareness"],
+        "cricket": ["Bowling", "Batting", "Fielding", "Speed", "Fitness"],
         "default": ["Skill A", "Skill B", "Skill C", "Skill D", "Skill E"]
     }
     if not sport:
